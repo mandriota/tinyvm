@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	tinyvm "github.com/MarkMandriota/TinyVM"
+	"github.com/MarkMandriota/TinyVM"
 )
 
 var vm *tinyvm.Machine
