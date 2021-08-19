@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/MarkMandriota/TinyVM"
+	tinyvm "github.com/MarkMandriota/TinyVM"
 )
 
 var vm *tinyvm.Machine
@@ -21,7 +21,7 @@ func init() {
 
 	fi, err := os.Open(os.Args[1])
 	if err != nil {
-		log.Fatalf("error while opening file: ", err)
+		log.Fatalf("error while opening file: %v", err)
 	}
 	defer fi.Close()
 
@@ -29,15 +29,15 @@ func init() {
 }
 
 func main() {
+	r := bufio.NewReader(os.Stdin)
+	w := bufio.NewWriter(os.Stdout)
+
 	defer func() {
+		w.Flush()
+
 		if err := recover(); err != nil {
 			log.Println(err)
 		}
 	}()
-
-	r := bufio.NewReader(os.Stdin)
-	w := bufio.NewWriter(os.Stdout)
-	defer w.Flush()
-
 	vm.Execute(r, w)
 }
