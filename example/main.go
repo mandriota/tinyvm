@@ -1,12 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"io"
 	"log"
 	"os"
+	"time"
 
-	"github.com/MarkMandriota/TinyVM"
+	tinyvm "github.com/MarkMandriota/TinyVM"
 )
 
 var vm *tinyvm.Machine
@@ -16,28 +16,26 @@ func init() {
 		log.Fatalf("no input file")
 	}
 
-	vm = new(tinyvm.Machine)
-	vm.Init(nil)
-
 	fi, err := os.Open(os.Args[1])
 	if err != nil {
 		log.Fatalf("error while opening file: %v", err)
 	}
 	defer fi.Close()
 
+	vm = tinyvm.NewMachine(nil, os.Stdin, os.Stdout)
 	vm.Text, _ = io.ReadAll(fi)
 }
 
 func main() {
-	r := bufio.NewReader(os.Stdin)
-	w := bufio.NewWriter(os.Stdout)
+	beg := time.Now()
 
 	defer func() {
-		w.Flush()
+		log.Printf("Total execution time: %v", time.Since(beg))
 
-		if err := recover(); err != nil {
-			log.Println(err)
+		if v := recover(); v != nil {
+			log.Printf("MSG!: %v", v)
 		}
 	}()
-	vm.Execute(r, w)
+
+	vm.Execute()
 }
