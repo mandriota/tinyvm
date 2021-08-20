@@ -14,9 +14,9 @@ SumArray:
 
 INT PUT
 ```
-Binary code you can find in SumOfArr.bin
+Binary code you can find in test_sumArr.bin
 
-2. 2 Squares
+2. 2 Powers
 ```
 INT GET
 POPC
@@ -30,4 +30,4 @@ Squares:
   PUSH Squares
   LOOP
 ```
-Binary code you can find in 2Squares.bin
+Binary code you can find in test_2Pow.bin
