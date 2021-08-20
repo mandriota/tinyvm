@@ -5,6 +5,8 @@
 package tinyvm
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	u "unsafe"
@@ -17,55 +19,54 @@ func (w *Word) Uint16() uint16 {
 }
 
 type Machine struct {
-	Stack []uint16
+	Stack [1 << 16]uint16
 	Text  []byte
+
+	out *bufio.Writer
+	in  *bufio.Reader
 
 	Reg struct {
 		IP uint16
+		SP uint16
 		CX uint16
+		AX Word
 	}
 }
 
-func (m *Machine) Init(fi []byte) {
-	m.Text = fi
-	m.Reg.IP = 0
-	m.Reg.CX = 0
-
-	m.Stack = make([]uint16, 0, 1<<16)
-	m.Push(uint16(len(m.Text) - 1))
+func NewMachine(fi []byte, w io.Writer, r io.Reader) *Machine {
+	return &Machine{
+		Text: fi,
+		out:  bufio.NewWriter(w),
+		in:   bufio.NewReader(r),
+	}
 }
 
 func (m *Machine) Push(v uint16) {
-	m.Stack = append(m.Stack, v)
+	m.Stack[m.Reg.SP] = v
+	m.Reg.SP++
 }
 
-func (m *Machine) Pop() (v uint16) {
-	if len(m.Stack) < 1 {
-		panic("pop onto empty stack")
-	}
-
-	v = m.Stack[len(m.Stack)-1]
-	m.Stack = m.Stack[:len(m.Stack)-1]
-
-	return
+func (m *Machine) Pop() uint16 {
+	m.Reg.SP--
+	return m.Stack[m.Reg.SP]
 }
 
 func (m *Machine) NextByte() (v byte) {
 	if int(m.Reg.IP) >= len(m.Text) {
-		panic("EOF")
+		panic(errors.New("end of file"))
 	}
 
 	v = m.Text[m.Reg.IP]
 	m.Reg.IP++
+
 	return
 }
 
 func (m *Machine) NextWord() uint16 {
-	var w Word
-	w[0] = m.NextByte()
-	w[1] = m.NextByte()
+	m.Reg.AX[0] = m.NextByte()
+	m.Reg.AX[1] = m.NextByte()
 
-	return w.Uint16()
+	return m.Reg.AX.Uint16()
 }
 
 const (
@@ -81,10 +82,13 @@ const (
 	SUB // Sub 2 value onto stack
 
 	INT_GET // Get value from stdout to stack
-	INT_PUT // Put value from stack to stdout
+	INT_PUT // Put value from stack to stdout`
+
+	SWP // Swaps 2 value onto stack
 )
 
-func (m *Machine) Execute(r io.Reader, w io.Writer) {
+func (m *Machine) Execute() {
+	defer m.out.Flush()
 	for {
 		switch m.NextByte() {
 		case POPI:
@@ -97,6 +101,10 @@ func (m *Machine) Execute(r io.Reader, w io.Writer) {
 			x := m.Pop()
 			m.Push(x)
 			m.Push(x)
+		case SWP:
+			x, y := m.Pop(), m.Pop()
+			m.Push(x)
+			m.Push(y)
 		case LOOP:
 			if x := m.Pop(); m.Reg.CX > 0 {
 				m.Reg.CX--
@@ -107,11 +115,13 @@ func (m *Machine) Execute(r io.Reader, w io.Writer) {
 		case SUB:
 			m.Push(m.Pop() - m.Pop())
 		case INT_PUT:
-			fmt.Fprintln(w, m.Pop())
+			fmt.Fprintln(m.out, m.Pop())
 		case INT_GET:
-			var x uint16
-			fmt.Fscan(r, &x)
+			x := uint16(0)
+			fmt.Fscan(m.in, &x)
 			m.Push(x)
+		default:
+			panic(errors.New("unsupported opcode"))
 		}
 	}
 }
