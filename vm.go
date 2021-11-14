@@ -82,7 +82,7 @@ const (
 	SUB // Sub 2 value onto stack
 
 	INT_GET // Get value from stdout to stack
-	INT_PUT // Put value from stack to stdout`
+	INT_PUT // Put value from stack to stdout
 
 	SWP // Swaps 2 value onto stack
 )
