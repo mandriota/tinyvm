@@ -22,7 +22,7 @@ func init() {
 	}
 	defer fi.Close()
 
-	vm = tinyvm.NewMachine(nil, os.Stdin, os.Stdout)
+	vm = tinyvm.NewMachine(nil, os.Stdout, os.Stdin)
 	vm.Text, _ = io.ReadAll(fi)
 }
 
