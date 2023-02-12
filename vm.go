@@ -14,38 +14,38 @@ import (
 var ErrUnsupportedOpcode = errors.New("unsupported opcode")
 
 type Machine struct {
-	Stack [1 << 16]uint16
-	Text  []byte
+	stack [1 << 16]uint16
+	text  []byte
 
-	PC uint16 // Program Counter
-	SC uint16 // Stack Counter
-	CC uint16 // Cycle Counter
-	AR uint16 // Accumulator Register
+	pc uint16 // Program Counter
+	sc uint16 // Stack Counter
+	cc uint16 // Cycle Counter
+	ar uint16 // Accumulator Register
 }
 
 func NewMachine(text []byte) *Machine {
-	return &Machine{Text: text}
+	return &Machine{text: text}
 }
 
-func (m *Machine) Push(w uint16) {
-	m.Stack[m.SC] = w
-	m.SC++
+func (m *Machine) push(w uint16) {
+	m.stack[m.sc] = w
+	m.sc++
 }
 
-func (m *Machine) Pop() uint16 {
-	m.SC--
-	return m.Stack[m.SC]
+func (m *Machine) pop() uint16 {
+	m.sc--
+	return m.stack[m.sc]
 }
 
 func (m *Machine) nextByte() byte {
-	b := m.Text[m.PC]
-	m.PC++
+	b := m.text[m.pc]
+	m.pc++
 
 	return b
 }
 
 func (m *Machine) NextWord() (uint16, error) {
-	if int(m.PC)+1 >= len(m.Text) {
+	if int(m.pc)+1 >= len(m.text) {
 		return 0, io.EOF
 	}
 
@@ -55,13 +55,13 @@ func (m *Machine) NextWord() (uint16, error) {
 }
 
 const (
-	POPI = iota // Pop to m.PC
-	POPC        // Pop to m.CC
+	POPI = iota // Pop to m.pc
+	POPC        // Pop to m.cc
 
 	PUSH // Push value onto stack
 	DUP  // Dup value onto stack
 
-	LOOP //  If m.CC > 0 then POPI with decriment of m.CC
+	LOOP //  If m.cc > 0 then POPI with decriment of m.cc
 
 	ADD // Add 2 value onto stack
 	SUB // Sub 2 value onto stack
@@ -74,43 +74,43 @@ const (
 
 func (m *Machine) Execute(r io.Reader, w io.Writer) error {
 	for {
-		if int(m.PC) >= len(m.Text) {
+		if int(m.pc) >= len(m.text) {
 			return io.EOF
 		}
 
 		switch m.nextByte() {
 		case POPI:
-			m.PC = m.Pop()
+			m.pc = m.pop()
 		case POPC:
-			m.CC = m.Pop()
+			m.cc = m.pop()
 		case PUSH:
 			w, err := m.NextWord()
 			if err != nil {
 				return err
 			}
-			m.Push(w)
+			m.push(w)
 		case DUP:
-			x := m.Pop()
-			m.Push(x)
-			m.Push(x)
+			x := m.pop()
+			m.push(x)
+			m.push(x)
 		case SWP:
-			x, y := m.Pop(), m.Pop()
-			m.Push(x)
-			m.Push(y)
+			x, y := m.pop(), m.pop()
+			m.push(x)
+			m.push(y)
 		case LOOP:
-			if x := m.Pop(); m.CC > 0 {
-				m.CC--
-				m.PC = x
+			if x := m.pop(); m.cc > 0 {
+				m.cc--
+				m.pc = x
 			}
 		case ADD:
-			m.Push(m.Pop() + m.Pop())
+			m.push(m.pop() + m.pop())
 		case SUB:
-			m.Push(m.Pop() - m.Pop())
+			m.push(m.pop() - m.pop())
 		case INT_PUT:
-			fmt.Fprintln(w, m.Pop())
+			fmt.Fprintln(w, m.pop())
 		case INT_GET:
-			fmt.Fscan(r, &m.AR)
-			m.Push(m.AR)
+			fmt.Fscan(r, &m.ar)
+			m.push(m.ar)
 		default:
 			return ErrUnsupportedOpcode
 		}

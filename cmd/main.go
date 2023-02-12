@@ -20,8 +20,8 @@ func main() {
 	}
 	defer fs.Close()
 
-	vm := tinyvm.NewMachine(nil)
-	vm.Text, _ = io.ReadAll(fs)
+	text, _ := io.ReadAll(fs)
+	vm := tinyvm.NewMachine(text)
 
 	r := bufio.NewReader(os.Stdin)
 	w := bufio.NewWriter(os.Stdout)
