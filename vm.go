@@ -1,82 +1,67 @@
 // Copyright 2021 Mark Mandriota. All right reserved.
 
 // package tinyvm - Tiny Stack-VM.
-// This is just a demo work, so there are not many instruction and not complex arch.
+// This is only a demo work, so there are not many instruction and not complex arch.
 package tinyvm
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
-	u "unsafe"
+	"unsafe"
 )
 
-type Word [2]byte
-
-func (w *Word) Uint16() uint16 {
-	return *(*uint16)(u.Pointer(w))
-}
+var ErrUnsupportedOpcode = errors.New("unsupported opcode")
 
 type Machine struct {
 	Stack [1 << 16]uint16
 	Text  []byte
 
-	out *bufio.Writer
-	in  *bufio.Reader
-
-	Reg struct {
-		IP uint16
-		SP uint16
-		CX uint16
-		AX Word
-	}
+	PC uint16 // Program Counter
+	SC uint16 // Stack Counter
+	CC uint16 // Cycle Counter
+	AR uint16 // Accumulator Register
 }
 
-func NewMachine(fi []byte, w io.Writer, r io.Reader) *Machine {
-	return &Machine{
-		Text: fi,
-		out:  bufio.NewWriter(w),
-		in:   bufio.NewReader(r),
-	}
+func NewMachine(text []byte) *Machine {
+	return &Machine{Text: text}
 }
 
-func (m *Machine) Push(v uint16) {
-	m.Stack[m.Reg.SP] = v
-	m.Reg.SP++
+func (m *Machine) Push(w uint16) {
+	m.Stack[m.SC] = w
+	m.SC++
 }
 
 func (m *Machine) Pop() uint16 {
-	m.Reg.SP--
-	return m.Stack[m.Reg.SP]
+	m.SC--
+	return m.Stack[m.SC]
 }
 
-func (m *Machine) NextByte() (v byte) {
-	if int(m.Reg.IP) >= len(m.Text) {
-		panic(errors.New("end of file"))
+func (m *Machine) nextByte() byte {
+	b := m.Text[m.PC]
+	m.PC++
+
+	return b
+}
+
+func (m *Machine) NextWord() (uint16, error) {
+	if int(m.PC)+1 >= len(m.Text) {
+		return 0, io.EOF
 	}
 
-	v = m.Text[m.Reg.IP]
-	m.Reg.IP++
-
-	return
-}
-
-func (m *Machine) NextWord() uint16 {
-	m.Reg.AX[0] = m.NextByte()
-	m.Reg.AX[1] = m.NextByte()
-
-	return m.Reg.AX.Uint16()
+	return *(*uint16)(unsafe.Pointer(
+		&[2]byte{m.nextByte(), m.nextByte()},
+	)), nil
 }
 
 const (
-	POPI = iota // Pop to m.Reg.IP
-	POPC        // Pop to m.Reg.CX
+	POPI = iota // Pop to m.PC
+	POPC        // Pop to m.CC
 
 	PUSH // Push value onto stack
 	DUP  // Dup value onto stack
 
-	LOOP //  If m.Reg.CX > 0 then POPI with decriment of m.Reg.CX
+	LOOP //  If m.CC > 0 then POPI with decriment of m.CC
 
 	ADD // Add 2 value onto stack
 	SUB // Sub 2 value onto stack
@@ -87,16 +72,23 @@ const (
 	SWP // Swaps 2 value onto stack
 )
 
-func (m *Machine) Execute() {
-	defer m.out.Flush()
+func (m *Machine) Execute(r io.Reader, w io.Writer) error {
 	for {
-		switch m.NextByte() {
+		if int(m.PC) >= len(m.Text) {
+			return io.EOF
+		}
+
+		switch m.nextByte() {
 		case POPI:
-			m.Reg.IP = m.Pop()
+			m.PC = m.Pop()
 		case POPC:
-			m.Reg.CX = m.Pop()
+			m.CC = m.Pop()
 		case PUSH:
-			m.Push(m.NextWord())
+			w, err := m.NextWord()
+			if err != nil {
+				return err
+			}
+			m.Push(w)
 		case DUP:
 			x := m.Pop()
 			m.Push(x)
@@ -106,22 +98,21 @@ func (m *Machine) Execute() {
 			m.Push(x)
 			m.Push(y)
 		case LOOP:
-			if x := m.Pop(); m.Reg.CX > 0 {
-				m.Reg.CX--
-				m.Reg.IP = x
+			if x := m.Pop(); m.CC > 0 {
+				m.CC--
+				m.PC = x
 			}
 		case ADD:
 			m.Push(m.Pop() + m.Pop())
 		case SUB:
 			m.Push(m.Pop() - m.Pop())
 		case INT_PUT:
-			fmt.Fprintln(m.out, m.Pop())
+			fmt.Fprintln(w, m.Pop())
 		case INT_GET:
-			x := uint16(0)
-			fmt.Fscan(m.in, &x)
-			m.Push(x)
+			fmt.Fscan(r, &m.AR)
+			m.Push(m.AR)
 		default:
-			panic(errors.New("unsupported opcode"))
+			return ErrUnsupportedOpcode
 		}
 	}
 }

@@ -1,41 +1,37 @@
 package main
 
 import (
+	"bufio"
+	"flag"
 	"io"
 	"log"
 	"os"
 	"time"
 
-	tinyvm "github.com/MarkMandriota/TinyVM"
+	"github.com/MarkMandriota/tinyvm"
 )
 
-var vm *tinyvm.Machine
-
-func init() {
-	if len(os.Args) < 2 {
-		log.Fatalf("no input file")
-	}
-
-	fi, err := os.Open(os.Args[1])
-	if err != nil {
-		log.Fatalf("error while opening file: %v", err)
-	}
-	defer fi.Close()
-
-	vm = tinyvm.NewMachine(nil, os.Stdout, os.Stdin)
-	vm.Text, _ = io.ReadAll(fi)
-}
-
 func main() {
+	flag.Parse()
+
+	fs, err := os.Open(flag.Arg(0))
+	if err != nil {
+		log.Fatalf("error while opening file \"%s\": %v", flag.Arg(0), err)
+	}
+	defer fs.Close()
+
+	vm := tinyvm.NewMachine(nil)
+	vm.Text, _ = io.ReadAll(fs)
+
+	r := bufio.NewReader(os.Stdin)
+	w := bufio.NewWriter(os.Stdout)
+	defer w.Flush()
+
 	beg := time.Now()
 
-	defer func() {
-		log.Printf("Total execution time: %v", time.Since(beg))
+	if err := vm.Execute(r, w); err != nil && err != io.EOF {
+		log.Println(err)
+	}
 
-		if v := recover(); v != nil {
-			log.Printf("MSG!: %v", v)
-		}
-	}()
-
-	vm.Execute()
+	log.Printf("Total execution time: %v", time.Since(beg))
 }
